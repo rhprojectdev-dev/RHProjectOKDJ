@@ -54,6 +54,12 @@
   .nav:hover{background:#2b1013;color:#fff}
   .side-card{margin-top:20px;padding:13px;border:1px solid var(--line);background:#190b0d;border-radius:8px}
   .side-card b{font-size:.8rem}.side-card p{margin:6px 0 0;color:var(--muted);font-size:.7rem;line-height:1.45}
+  .sound-buttons{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:10px}
+  .sound-btn,.sound-stop{border:1px solid #4b2529;background:#1b0c0e;color:#cdbabd;border-radius:5px;padding:8px 5px;font-size:.58rem;font-weight:900}
+  .sound-btn:hover,.sound-btn.active{background:#68141b;border-color:#a92933;color:#fff}
+  .sound-stop{width:100%;margin-top:7px;color:#e9cdd0}.sound-stop:hover{background:#3b1115}
+  .previewing{animation:previewPulse 1s ease-in-out infinite}
+  @keyframes previewPulse{50%{box-shadow:0 0 0 3px rgba(213,42,53,.12)}}
   .main{padding:24px;min-width:0;background:radial-gradient(circle at 90% 0,#241012 0,#100708 36%,#0e0708 70%)}
   .hero{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:18px}
   h1{font-size:clamp(1.55rem,3vw,2.25rem);margin:0;font-weight:900;letter-spacing:-.5px}
@@ -106,8 +112,9 @@
   footer{padding:16px 4px 3px;color:#6e5a5d;text-align:center;font-size:.65rem}
   @media(max-width:800px){
     body{padding:0}.topbar{border-radius:0;padding:14px 15px}.status{display:none}
-    .layout{display:block;border-left:0;border-right:0}.sidebar{display:none}.main{padding:16px 12px}
-    .hero{display:block}.stats{grid-template-columns:repeat(2,1fr)}.editor{grid-template-columns:1fr}
+    .layout{display:block;border-left:0;border-right:0}.sidebar{display:block;border-right:0;border-bottom:1px solid var(--line);padding:12px}
+    .sidebar .nav{display:inline-flex;width:auto;margin-right:4px}.side-card{display:none}
+    .main{padding:16px 12px}.hero{display:block}.stats{grid-template-columns:repeat(2,1fr)}.editor{grid-template-columns:1fr}
   }
 </style>
 </head>
@@ -138,6 +145,17 @@
       <div class="side-card">
         <b>Struktur RBXM</b>
         <p>Model<br>└─ ModuleScript<br>&nbsp;&nbsp;&nbsp;└─ Source = hasil convert</p>
+      </div>
+      <div class="side-card sound-card">
+        <b>Suara Preview</b>
+        <p>Pilih suara untuk tombol <b>NADA PREVIEW</b>.</p>
+        <div class="sound-buttons">
+          <button class="sound-btn active" data-wave="supersaw">SUPERSAW</button>
+          <button class="sound-btn" data-wave="square">SQUARE</button>
+          <button class="sound-btn" data-wave="triangle">TRIANGLE</button>
+          <button class="sound-btn" data-wave="sawtooth">SAW</button>
+        </div>
+        <button class="sound-stop" id="btnStopPreview">■ STOP PREVIEW</button>
       </div>
     </aside>
 
@@ -197,7 +215,8 @@
         <div class="section-title">
           <h2>Data Convert</h2>
           <div class="actions">
-            <small id="historyCount">0 data</small>
+            <small id="historyCount">0 / 500 data</small>
+            <button class="btn primary" id="btnDownloadAll">DOWNLOAD ALL DATA AS RBXM</button>
             <button class="btn" id="btnClear">HAPUS DATA</button>
           </div>
         </div>
@@ -419,7 +438,7 @@
   }
 
   function saveHistory(){
-    localStorage.setItem("rhproject_midi_history", JSON.stringify(history.slice(0,50)));
+    localStorage.setItem("rhproject_midi_history", JSON.stringify(history.slice(0,500)));
   }
 
   function xmlEscape(s){
@@ -431,26 +450,44 @@
     return "<![CDATA[" + String(s).replace(/\]\]>/g, "]]]]><![CDATA[>") + "]]>";
   }
 
+  function randomRef(){
+    return "RBX" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+
   function makeRBXM(songName, lua){
-    const safeName = xmlEscape(songName || "LAGU");
-    const refModel = "RBX0000000000000001";
-    const refModule = "RBX0000000000000002";
+    const safeName=xmlEscape(songName||"LAGU");
     return `<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4">
   <External>null</External>
   <External>nil</External>
-  <Item class="Model" referent="${refModel}">
-    <Properties>
-      <string name="Name">Model</string>
-      <bool name="Archivable">true</bool>
-    </Properties>
-    <Item class="ModuleScript" referent="${refModule}">
+  <Item class="Model" referent="${randomRef()}">
+    <Properties><string name="Name">Model</string><bool name="Archivable">true</bool></Properties>
+    <Item class="ModuleScript" referent="${randomRef()}">
       <Properties>
         <string name="Name">${safeName}</string>
         <ProtectedString name="Source">${xmlCData(lua)}</ProtectedString>
         <bool name="Archivable">true</bool>
       </Properties>
     </Item>
+  </Item>
+</roblox>`;
+  }
+
+  function makeAllRBXM(items){
+    const modules=items.map(item=>`    <Item class="ModuleScript" referent="${randomRef()}">
+      <Properties>
+        <string name="Name">${xmlEscape(item.name||"LAGU")}</string>
+        <ProtectedString name="Source">${xmlCData(item.lua||"")}</ProtectedString>
+        <bool name="Archivable">true</bool>
+      </Properties>
+    </Item>`).join("\n");
+    return `<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4">
+  <External>null</External>
+  <External>nil</External>
+  <Item class="Model" referent="${randomRef()}">
+    <Properties><string name="Name">Model</string><bool name="Archivable">true</bool></Properties>
+${modules}
   </Item>
 </roblox>`;
   }
@@ -476,10 +513,65 @@
     downloadBlob(makeRBXM(songName,lua), filename, "application/octet-stream");
   }
 
+  // =============================================
+  // NADA PREVIEW — Web Audio API
+  // =============================================
+  let audioCtx=null, activePreview=[], selectedWave="supersaw";
+
+  function getAudioContext(){
+    if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    return audioCtx;
+  }
+  function stopPreview(){
+    activePreview.forEach(n=>{try{n.stop()}catch(e){} try{n.disconnect()}catch(e){}});
+    activePreview=[];
+    document.querySelectorAll("[data-preview]").forEach(b=>b.classList.remove("previewing"));
+  }
+  function midiHz(p){return 440*Math.pow(2,(Number(p)-69)/12)}
+  function makeVoice(ctx,freq,start,end,wave){
+    const gain=ctx.createGain(), master=ctx.createGain();
+    master.gain.value=.055; gain.connect(master); master.connect(ctx.destination);
+    const nodes=[];
+    if(wave==="supersaw"){
+      [-11,-5.5,0,5.5,11].forEach(det=>{
+        const o=ctx.createOscillator(); o.type="sawtooth"; o.frequency.value=freq; o.detune.value=det;
+        o.connect(gain); o.start(start); o.stop(end); nodes.push(o);
+      });
+    }else{
+      const o=ctx.createOscillator(); o.type=wave; o.frequency.value=freq;
+      o.connect(gain); o.start(start); o.stop(end); nodes.push(o);
+    }
+    const attack=Math.min(.012,Math.max(.004,(end-start)*.08));
+    const release=Math.min(.08,Math.max(.025,(end-start)*.18));
+    gain.gain.setValueAtTime(.0001,start);
+    gain.gain.exponentialRampToValueAtTime(1,start+attack);
+    gain.gain.setValueAtTime(1,Math.max(start+attack,end-release));
+    gain.gain.exponentialRampToValueAtTime(.0001,end);
+    return nodes.concat([gain,master]);
+  }
+  async function previewItem(item,button){
+    if(!Array.isArray(item.noteData)||!item.noteData.length){
+      alert("Data lama ini belum menyimpan note untuk preview. Convert ulang MIDI-nya agar tombol preview bisa dipakai.");
+      return;
+    }
+    stopPreview();
+    const ctx=getAudioContext(); if(ctx.state==="suspended") await ctx.resume();
+    const base=ctx.currentTime+.06, maxEnd=item.noteData.reduce((m,n)=>Math.max(m,+n.t+(+n.dur||0)),0);
+    const limit=Math.min(item.noteData.length,12000);
+    for(let i=0;i<limit;i++){
+      const n=item.noteData[i], st=base+Number(n.t);
+      if(st>base+Math.min(maxEnd,300)) break;
+      const en=Math.max(st+.035,st+Number(n.dur));
+      activePreview.push(...makeVoice(ctx,midiHz(n.pitch),st,en,selectedWave));
+    }
+    button.classList.add("previewing");
+    setTimeout(()=>button.classList.remove("previewing"),Math.min(maxEnd*1000+300,300000));
+  }
+
   function renderHistory(){
     historyBody.innerHTML = "";
     emptyHistory.classList.toggle("hidden", history.length > 0);
-    historyCount.textContent = history.length + " data";
+    historyCount.textContent = history.length + " / 500 data";
 
     history.forEach((item, index)=>{
       const tr = document.createElement("tr");
@@ -492,6 +584,7 @@
         <td><div class="actions">
           <button class="btn primary" data-download="${item.id}">DOWNLOAD RBXM</button>
           <button class="btn" data-lua="${item.id}">LUA</button>
+          <button class="btn" data-preview="${item.id}">NADA PREVIEW</button>
         </div></td>`;
       historyBody.appendChild(tr);
     });
@@ -532,6 +625,7 @@
           .replace(/[^A-Z0-9_]+/g,"_").replace(/^_+|_+$/g,"") || "LAGU";
 
         currentLua = buildLua(notes,currentSongName);
+        window._currentNotes = notes.map(n => ({t:n.t, pitch:n.pitch, dur:n.dur}));
         currentStats = {notes:notes.length,duration:durTotal.toFixed(1),range:minP+"-"+maxP,unique:uniqueP};
 
         document.getElementById("statNotes").textContent = currentStats.notes;
@@ -587,11 +681,12 @@
       duration:currentStats.duration,
       range:currentStats.range,
       unique:currentStats.unique,
+      noteData:window._currentNotes || [],
       lua:currentLua,
       date:new Date().toISOString()
     };
     history.unshift(item);
-    history=history.slice(0,50);
+    history=history.slice(0,500);
     saveHistory();
     renderHistory();
     showCurrent(item);
@@ -610,11 +705,25 @@
 
   historyBody.addEventListener("click",e=>{
     const r=e.target.closest("button"); if(!r)return;
-    const id=r.dataset.download || r.dataset.lua;
+    const id=r.dataset.download || r.dataset.lua || r.dataset.preview;
     const item=history.find(x=>x.id===id); if(!item)return;
     if(r.dataset.download) downloadRBXM(item.name,item.lua);
-    else downloadBlob(item.lua,item.name+".lua","text/plain;charset=utf-8");
+    else if(r.dataset.lua) downloadBlob(item.lua,item.name+".lua","text/plain;charset=utf-8");
+    else if(r.dataset.preview) previewItem(item,r);
   });
+
+  document.getElementById("btnDownloadAll").addEventListener("click",()=>{
+    if(!history.length){alert("Belum ada data convert.");return;}
+    downloadBlob(makeAllRBXM(history),"RHProject_All_MIDI_Data.rbxm","application/octet-stream");
+  });
+
+  document.querySelectorAll(".sound-btn").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      document.querySelectorAll(".sound-btn").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active"); selectedWave=btn.dataset.wave;
+    });
+  });
+  document.getElementById("btnStopPreview").addEventListener("click",stopPreview);
 
   document.getElementById("btnClear").addEventListener("click",()=>{
     if(!history.length)return;
