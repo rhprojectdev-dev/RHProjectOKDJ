@@ -459,13 +459,21 @@
     const blob = new Blob([text], {type:type || "application/octet-stream"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url), 500);
+    a.href = url;
+    a.download = filename; // exact filename, including .rbxm
+    a.setAttribute("download", filename);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
   }
 
   function downloadRBXM(songName, lua){
-    downloadBlob(makeRBXM(songName,lua), (songName || "LAGU") + ".rbxm", "application/xml");
+    // RBXM XML place/model files are intentionally downloaded with the
+    // .rbxm extension. Use a generic binary MIME type so browsers don't
+    // reinterpret the download as .xml.
+    const filename = ((songName || "LAGU").replace(/[^A-Za-z0-9_-]+/g, "_") || "LAGU") + ".rbxm";
+    downloadBlob(makeRBXM(songName,lua), filename, "application/octet-stream");
   }
 
   function renderHistory(){
